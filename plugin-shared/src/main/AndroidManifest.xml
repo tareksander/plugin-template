@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.termux.plugin_shared">
+    <queries>
+        <package android:name="${TERMUX_PACKAGE_NAME}" />
+    </queries>
+    <uses-permission android:name="${TERMUX_PACKAGE_NAME}.permission.TERMUX_PLUGIN" />
+</manifest>

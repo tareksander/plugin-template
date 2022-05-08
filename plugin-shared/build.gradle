@@ -1,0 +1,39 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    compileSdk 31
+
+    defaultConfig {
+        minSdk 24
+        targetSdk 31
+        
+        def TERMUX_PACKAGE_NAME = "com.termux"
+        
+        
+        
+        
+        buildConfigField "String", "TERMUX_PACKAGE_NAME", "\""+TERMUX_PACKAGE_NAME+"\""
+        manifestPlaceholders = [TERMUX_PACKAGE_NAME: TERMUX_PACKAGE_NAME]
+        
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    api 'com.termux:plugin-aidl:1.0.0' // api, doesn't load the sources jar with the Javadoc otherwise
+    
+    
+    implementation 'androidx.appcompat:appcompat:1.4.1'
+}
