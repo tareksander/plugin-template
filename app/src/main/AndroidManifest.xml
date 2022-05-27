@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.termux.plugintemplate">
 
-    <uses-permission android:name="com.termux.permission.permission.RUN_COMMAND" />
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
     
     <application
         android:allowBackup="true"

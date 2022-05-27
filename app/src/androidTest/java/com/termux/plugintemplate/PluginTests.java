@@ -5,13 +5,10 @@ import android.content.pm.PackageManager;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
-import androidx.test.rule.GrantPermissionRule;
 
 import com.termux.plugin_shared.PluginUtils;
 import com.termux.plugin_shared.TermuxPluginConstants;
 
-import org.junit.After;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -23,9 +20,9 @@ public class PluginTests
     public void bindServiceWithoutPermissionTest() {
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
         
-        assert appContext.checkSelfPermission(TermuxPluginConstants.PERMISSION_TERMUX_PLUGIN) == PackageManager.PERMISSION_DENIED;
+        assert appContext.checkSelfPermission(TermuxPluginConstants.PERMISSION_TERMUX_PLUGIN) == PackageManager.PERMISSION_DENIED; // check that the plugin permission hasn't been granted
         
-        assert PluginUtils.bindPluginService(appContext) == null;
+        assert PluginUtils.bindPluginService(appContext) == null; // binding the service shouldn't be possible without the Plugin permission
     }
     
     

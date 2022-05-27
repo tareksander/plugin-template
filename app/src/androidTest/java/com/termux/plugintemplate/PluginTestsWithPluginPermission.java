@@ -1,55 +1,47 @@
 package com.termux.plugintemplate;
 
 import android.content.Context;
-import android.content.Intent;
-import android.os.IBinder;
+import android.content.pm.PackageManager;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.util.Log;
 
-import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.rule.GrantPermissionRule;
+
+import com.termux.plugin_aidl.IPluginCallback;
+import com.termux.plugin_shared.PluginServiceWrapper;
+import com.termux.plugin_shared.PluginUtils;
+import com.termux.plugin_shared.TermuxPluginConstants;
 
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import static org.junit.Assert.*;
-
-import com.termux.plugin_aidl.IPluginCallback;
-import com.termux.plugin_aidl.IPluginService;
-import com.termux.plugin_shared.CallbackService;
-import com.termux.plugin_shared.PluginServiceWrapper;
-import com.termux.plugin_shared.PluginUtils;
-import com.termux.plugin_shared.TermuxPluginConstants;
-
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
-
 
 @RunWith(AndroidJUnit4.class)
 public class PluginTestsWithPluginPermission
 {
-    @Rule public GrantPermissionRule pluginPermission = GrantPermissionRule.grant(TermuxPluginConstants.PERMISSION_TERMUX_PLUGIN);
-    @Rule public GrantPermissionRule runCommandPermission = GrantPermissionRule.grant(TermuxPluginConstants.PERMISSION_RUN_COMMAND);
+    @Rule
+    public GrantPermissionRule pluginPermission = GrantPermissionRule.grant(TermuxPluginConstants.PERMISSION_TERMUX_PLUGIN);
+    
     
     @Test
     public void bindServiceTest() {
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
-    
-        assert PluginUtils.bindPluginService(appContext) != null;
+        assert PluginUtils.bindPluginService(appContext) != null; // binding the service should be possible with the Plugin permission
     }
     
     
-    @Test
-    public void openFileTest() throws RemoteException, IOException {
+    @Test public void runCommandTest() throws RemoteException {
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
-    
+        
+        assert appContext.checkSelfPermission(TermuxPluginConstants.PERMISSION_RUN_COMMAND) == PackageManager.PERMISSION_DENIED; // check that the RUN_COMMAND permission hasn't been granted
+        
         PluginServiceWrapper w = PluginUtils.bindPluginService(appContext);
-        assert w != null;
+        assert w != null; // binding the service should be possible with the Plugin permission
         w.setCallbackBinder(new IPluginCallback.Stub()
         {
             @Override
@@ -57,13 +49,16 @@ public class PluginTestsWithPluginPermission
                 Log.d("IPluginCallback","getCallbackVersion");
                 return IPluginCallback.CURRENT_CALLBACK_VERSION;
             }
+    
+            @Override
+            public void socketConnection(String sockname, ParcelFileDescriptor connection) {}
         });
-        ParcelFileDescriptor p = w.openFile("test.txt", "w");
-        assert p != null;
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(p.getFileDescriptor()))) {
-            writer.write("Hello Plugin!\n");
-        }
-        p.close();
+        
+        try {
+            w.runTask("", null, null, null, null, null, null);
+            assert false; // runTask should always throw a SecurityException without the RUN_COMMAND permission
+        } catch (SecurityException ignored) {}
+        
     }
     
     
@@ -72,4 +67,5 @@ public class PluginTestsWithPluginPermission
     public void revokePermission() {
         InstrumentationRegistry.getInstrumentation().getUiAutomation().executeShellCommand("pm revoke "+InstrumentationRegistry.getInstrumentation().getTargetContext().getPackageName()+" "+TermuxPluginConstants.PERMISSION_TERMUX_PLUGIN);
     }
+    
 }

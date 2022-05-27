@@ -1,7 +1,5 @@
 package com.termux.plugin_shared;
 
-import android.app.PendingIntent;
-import android.net.LocalServerSocket;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
@@ -10,8 +8,6 @@ import androidx.annotation.NonNull;
 
 import com.termux.plugin_aidl.IPluginCallback;
 import com.termux.plugin_aidl.IPluginService;
-
-import java.io.IOException;
 
 /**
  * Provides overloaded methods so the AIDL doesn't have to include overloaded methods.
@@ -51,8 +47,8 @@ public class PluginServiceWrapper implements IPluginService
 
     
     @Override
-    public ParcelFileDescriptor listenOnSocketFile(@NonNull String name) throws RemoteException {
-        return mInterface.listenOnSocketFile(name);
+    public void listenOnSocketFile(@NonNull String name) throws RemoteException {
+        mInterface.listenOnSocketFile(name);
     }
     
     

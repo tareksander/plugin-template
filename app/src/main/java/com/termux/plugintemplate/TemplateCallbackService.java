@@ -1,8 +1,5 @@
 package com.termux.plugintemplate;
 
-import android.app.Service;
-import android.content.Intent;
-import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 
@@ -16,9 +13,12 @@ public class TemplateCallbackService extends CallbackService
     @NonNull
     @Override
     protected Callbacks getCallbacks() {
-        return new Callbacks()
-        {
-            
+        return new Callbacks() {
+    
+            @Override
+            public void socketConnection(String sockname, ParcelFileDescriptor connection) throws RemoteException {
+        
+            }
         };
     }
 }
