@@ -19,6 +19,7 @@ import com.termux.plugin_aidl.IPluginCallback;
 import com.termux.plugin_shared.PluginServiceWrapper;
 import com.termux.plugin_shared.PluginUtils;
 import com.termux.plugin_shared.TermuxPluginConstants;
+import com.termux.plugin_shared.UnixSocketUtils;
 
 import org.junit.After;
 import org.junit.Rule;
@@ -30,6 +31,7 @@ import java.io.BufferedWriter;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Objects;
 
 
 @RunWith(AndroidJUnit4.class)
@@ -185,7 +187,7 @@ public class PluginTestsWithPluginAndRunCommandPermission
         Object sync = new Object();
         final boolean[] finished = {false};
         final String[] res = {null};
-        
+        final String testString = "socket test";
         
         PluginServiceWrapper w = PluginUtils.bindPluginService(appContext);
         assert w != null; // binding the service should be possible with the Plugin permission
@@ -202,6 +204,8 @@ public class PluginTestsWithPluginAndRunCommandPermission
                 BufferedReader r = new BufferedReader(new FileReader(connection.getFileDescriptor()));
                 try {
                     res[0] = r.readLine();
+                    r.close();
+                    connection.close();
                 }
                 catch (IOException ignored) {}
                 synchronized (sync) {
@@ -217,7 +221,7 @@ public class PluginTestsWithPluginAndRunCommandPermission
             Intent ncIntent = new Intent(TermuxPluginConstants.RUN_COMMAND_SERVICE.ACTION_RUN_COMMAND);
             ncIntent.setComponent(ComponentName.createRelative(TermuxPluginConstants.TERMUX_PACKAGE_NAME, TermuxPluginConstants.RUN_COMMAND_SERVICE_NAME));
             ncIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_COMMAND_PATH, TermuxPluginConstants.TERMUX_FILES_DIR_PATH+"/usr/bin/bash");
-            ncIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_ARGUMENTS, new String[] {"-c", "echo \"socket test\" | timeout 0.1 nc -U "+TermuxPluginConstants.TERMUX_PLUGINS_DIR_PATH+"/"+appContext.getPackageName()+"/test.sock"});
+            ncIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_ARGUMENTS, new String[] {"-c", "echo \""+testString+"\" | timeout 0.1 nc -U "+TermuxPluginConstants.TERMUX_PLUGINS_DIR_PATH+"/"+appContext.getPackageName()+"/test.sock"});
             //noinspection deprecation
             ncIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_BACKGROUND, true);
             
@@ -229,7 +233,90 @@ public class PluginTestsWithPluginAndRunCommandPermission
                 sync.wait();
             }
         }
-        assert "socket test".equals(res[0]); // check if the text send with nc came through
+        assert testString.equals(res[0]); // check if the text send with nc came through
+    }
+    
+    
+    @Test
+    public void socketFDRecSendTest() throws RemoteException, InterruptedException {
+        Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        
+        Object sync = new Object();
+        final boolean[] finished = {false};
+        final String[] res = {null};
+        
+        final String testString = "socket test";
+        
+        PluginServiceWrapper w = PluginUtils.bindPluginService(appContext);
+        assert w != null; // binding the service should be possible with the Plugin permission
+        w.setCallbackBinder(new IPluginCallback.Stub()
+        {
+            @Override
+            public int getCallbackVersion() {
+                Log.d("IPluginCallback","getCallbackVersion");
+                return IPluginCallback.CURRENT_CALLBACK_VERSION;
+            }
+            
+            @Override
+            public void socketConnection(String sockname, ParcelFileDescriptor connection) {
+                try {
+                    ParcelFileDescriptor[] pair = ParcelFileDescriptor.createSocketPair();
+                    UnixSocketUtils.sendFD(connection, pair[1]);
+                    pair[1].close();
+                    BufferedWriter w = new BufferedWriter(new FileWriter(pair[0].getFileDescriptor()));
+                    w.write(testString);
+                    w.flush();
+                    w.close();
+                    pair[0].close();
+                    ParcelFileDescriptor rec = UnixSocketUtils.recvFD(connection);
+                    BufferedReader r = new BufferedReader(new FileReader(Objects.requireNonNull(rec).getFileDescriptor()));
+                    res[0] = r.readLine();
+                    r.close();
+                    rec.close();
+                    connection.close();
+                }
+                catch (Exception ignored) {}
+                synchronized (sync) {
+                    finished[0] = true;
+                    sync.notifyAll();
+                }
+            }
+        });
+        
+        w.listenOnSocketFile("test.sock");
+        
+        
+        {
+            Intent ncIntent = new Intent(TermuxPluginConstants.RUN_COMMAND_SERVICE.ACTION_RUN_COMMAND);
+            ncIntent.setComponent(ComponentName.createRelative(TermuxPluginConstants.TERMUX_PACKAGE_NAME, TermuxPluginConstants.RUN_COMMAND_SERVICE_NAME));
+            ncIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_COMMAND_PATH, TermuxPluginConstants.TERMUX_FILES_DIR_PATH+"/usr/bin/python");
+            ncIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_ARGUMENTS, new String[] {"-c",
+                    "from socket import *\n" +
+                    "from array import *\n" +
+                    "main = socket(AF_UNIX)\n" +
+                    "main.connect(\""+TermuxPluginConstants.TERMUX_PLUGINS_DIR_PATH+"/"+appContext.getPackageName()+"/test.sock"+"\")\n" +
+                    "msg, fds, _, _ = recv_fds(main, 1, 1)\n" +
+                    "sub1 = socket(fileno=fds[0])\n" +
+                    "data = sub1.recv(1000)\n" +
+                    "sub1.close()\n" +
+                    "socks = socketpair()\n" +
+                    "send_fds(main, [bytes(\"\\0\", \"utf-8\")], [socks[1].fileno()])\n" +
+                    "socks[1].close()\n" +
+                    "main.close()\n" +
+                    "socks[0].sendall(data)\n" +
+                    "socks[0].close()\n"});
+            //noinspection deprecation
+            ncIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_BACKGROUND, true);
+            
+            appContext.startService(ncIntent);
+        }
+        
+        while (! finished[0]) {
+            synchronized (sync) {
+                sync.wait();
+            }
+        }
+        assert testString.equals(res[0]); // check if the text send with nc came through
     }
     
     
