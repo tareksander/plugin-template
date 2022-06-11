@@ -8,6 +8,7 @@ import androidx.annotation.NonNull;
 
 import com.termux.plugin_aidl.IPluginCallback;
 import com.termux.plugin_aidl.IPluginService;
+import com.termux.plugin_aidl.Task;
 
 /**
  * Provides overloaded methods so the AIDL doesn't have to include overloaded methods.
@@ -40,8 +41,8 @@ public class PluginServiceWrapper implements IPluginService
     }
     
     @Override
-    public ParcelFileDescriptor[] runTask(String commandPath, String[] arguments, ParcelFileDescriptor stdin, String workdir, String commandLabel, String commandDescription, String commandHelp) throws RemoteException {
-        return mInterface.runTask(commandPath, arguments, stdin, workdir, commandLabel, commandDescription, commandHelp);
+    public Task runTask(String commandPath, String[] arguments, ParcelFileDescriptor stdin, String workdir, String[] environment) throws RemoteException {
+        return mInterface.runTask(commandPath, arguments, stdin, workdir, environment);
     }
     
 

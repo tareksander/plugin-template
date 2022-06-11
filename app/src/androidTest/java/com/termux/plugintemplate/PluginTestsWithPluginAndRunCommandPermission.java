@@ -16,6 +16,7 @@ import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.rule.GrantPermissionRule;
 
 import com.termux.plugin_aidl.IPluginCallback;
+import com.termux.plugin_aidl.Task;
 import com.termux.plugin_shared.PluginServiceWrapper;
 import com.termux.plugin_shared.PluginUtils;
 import com.termux.plugin_shared.TermuxPluginConstants;
@@ -28,6 +29,7 @@ import org.junit.runner.RunWith;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -46,10 +48,8 @@ public class PluginTestsWithPluginAndRunCommandPermission
         assert PluginUtils.bindPluginService(appContext) != null; // binding the service should be possible with the Plugin permission
     }
     
-    @Test public void runCommandTest() throws RemoteException {
+    @Test public void runTaskTest() throws RemoteException, IOException, InterruptedException {
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
-    
-        assert appContext.checkSelfPermission(TermuxPluginConstants.PERMISSION_RUN_COMMAND) == PackageManager.PERMISSION_DENIED; // check that the RUN_COMMAND permission hasn't been granted
         
         PluginServiceWrapper w = PluginUtils.bindPluginService(appContext);
         assert w != null; // binding the service should be possible with the Plugin permission
@@ -65,7 +65,26 @@ public class PluginTestsWithPluginAndRunCommandPermission
             public void socketConnection(String sockname, ParcelFileDescriptor connection) {}
         });
         
-        // TODO finish test when the runTask api is finished
+        ParcelFileDescriptor[] pipes = ParcelFileDescriptor.createPipe();
+        Task t = w.runTask(TermuxPluginConstants.TERMUX_FILES_DIR_PATH+"/usr/bin/cat", null, pipes[0], "/", new String[] {
+                //"LD_PRELOAD=/data/data/com.termux/files/usr/lib/libtermux-exec.so"
+        });
+        new Thread(() -> {
+            BufferedWriter wr = new BufferedWriter(new FileWriter(pipes[1].getFileDescriptor()));
+            try {
+                wr.write("test");
+            }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
+        }).start();
+        FileInputStream r = new FileInputStream(t.stdout.getFileDescriptor());
+        Log.d("test", "pid: "+t.pid);
+        Thread.sleep(1000);
+        Log.d("test", "available: "+r.available());
+        //Log.d("test", "read: "+r.read());
+        assert false;
+        
     }
     
     

@@ -55,7 +55,7 @@ public class PluginTestsWithPluginPermission
         });
         
         try {
-            w.runTask("", null, null, null, null, null, null);
+            w.runTask("", null, null, null, null);
             assert false; // runTask should always throw a SecurityException without the RUN_COMMAND permission
         } catch (SecurityException ignored) {}
         
