@@ -52,6 +52,8 @@ public class PluginTestsWithPluginPermission
     
             @Override
             public void socketConnection(String sockname, ParcelFileDescriptor connection) {}
+            @Override
+            public void taskFinished(int pid, int code) {}
         });
         
         try {

@@ -6,7 +6,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.PackageManager;
 import android.os.ParcelFileDescriptor;
 import android.os.RemoteException;
 import android.util.Log;
@@ -29,7 +28,6 @@ import org.junit.runner.RunWith;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -51,6 +49,10 @@ public class PluginTestsWithPluginAndRunCommandPermission
     @Test public void runTaskTest() throws RemoteException, IOException, InterruptedException {
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
         
+        
+        final int[] exitpid = new int[1];
+        final int[] exitcode = new int[1];
+        
         PluginServiceWrapper w = PluginUtils.bindPluginService(appContext);
         assert w != null; // binding the service should be possible with the Plugin permission
         w.setCallbackBinder(new IPluginCallback.Stub()
@@ -63,28 +65,43 @@ public class PluginTestsWithPluginAndRunCommandPermission
     
             @Override
             public void socketConnection(String sockname, ParcelFileDescriptor connection) {}
+            @Override
+            public void taskFinished(int pid, int code) {
+                exitpid[0] = pid;
+                exitcode[0] = code;
+            }
         });
         
         ParcelFileDescriptor[] pipes = ParcelFileDescriptor.createPipe();
-        Task t = w.runTask(TermuxPluginConstants.TERMUX_FILES_DIR_PATH+"/usr/bin/cat", null, pipes[0], "/", new String[] {
-                //"LD_PRELOAD=/data/data/com.termux/files/usr/lib/libtermux-exec.so"
-        });
+        Task t = w.runTask(TermuxPluginConstants.TERMUX_FILES_DIR_PATH+"/usr/bin/cat", new String[]{TermuxPluginConstants.TERMUX_FILES_DIR_PATH+"/usr/bin/cat"}, pipes[0], "/", null);
         new Thread(() -> {
+            try {
+                Thread.sleep(2000);
+            }
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
             BufferedWriter wr = new BufferedWriter(new FileWriter(pipes[1].getFileDescriptor()));
             try {
-                wr.write("test");
+                wr.write("test\n");
+                wr.close();
             }
             catch (IOException e) {
                 e.printStackTrace();
             }
         }).start();
-        FileInputStream r = new FileInputStream(t.stdout.getFileDescriptor());
-        Log.d("test", "pid: "+t.pid);
-        Thread.sleep(1000);
-        Log.d("test", "available: "+r.available());
-        //Log.d("test", "read: "+r.read());
-        assert false;
         
+        BufferedReader r = new BufferedReader(new FileReader(t.stdout.getFileDescriptor()));
+        assert "test".equals(r.readLine());
+        
+        // kill the Task
+        assert w.signalTask(t.pid, 9);
+        
+        while (exitpid[0] == 0) {
+            Thread.sleep(1);
+        }
+        assert exitpid[0] == t.pid;
+        assert exitcode[0] == -9;
     }
     
     
@@ -104,6 +121,9 @@ public class PluginTestsWithPluginAndRunCommandPermission
     
             @Override
             public void socketConnection(String sockname, ParcelFileDescriptor connection) {}
+    
+            @Override
+            public void taskFinished(int pid, int code) {}
         });
         try {
             w.openFile("../test.txt", "w");
@@ -127,6 +147,8 @@ public class PluginTestsWithPluginAndRunCommandPermission
     
             @Override
             public void socketConnection(String sockname, ParcelFileDescriptor connection) {}
+            @Override
+            public void taskFinished(int pid, int code) {}
         });
         final String writeString = "Hello Plugin!\n";
         
@@ -190,6 +212,8 @@ public class PluginTestsWithPluginAndRunCommandPermission
             
             @Override
             public void socketConnection(String sockname, ParcelFileDescriptor connection) {}
+            @Override
+            public void taskFinished(int pid, int code) {}
         });
         
         try {
@@ -232,6 +256,8 @@ public class PluginTestsWithPluginAndRunCommandPermission
                     sync.notifyAll();
                 }
             }
+            @Override
+            public void taskFinished(int pid, int code) {}
         });
         
         w.listenOnSocketFile("test.sock");
@@ -300,6 +326,8 @@ public class PluginTestsWithPluginAndRunCommandPermission
                     sync.notifyAll();
                 }
             }
+            @Override
+            public void taskFinished(int pid, int code) {}
         });
         
         w.listenOnSocketFile("test.sock");

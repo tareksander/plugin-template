@@ -16,9 +16,11 @@ public class TemplateCallbackService extends CallbackService
         return new Callbacks() {
     
             @Override
-            public void socketConnection(String sockname, ParcelFileDescriptor connection) throws RemoteException {
+            public void socketConnection(String sockname, ParcelFileDescriptor connection) {
         
             }
+            @Override
+            public void taskFinished(int pid, int code) {}
         };
     }
 }

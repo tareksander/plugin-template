@@ -45,7 +45,11 @@ public class PluginServiceWrapper implements IPluginService
         return mInterface.runTask(commandPath, arguments, stdin, workdir, environment);
     }
     
-
+    @Override
+    public boolean signalTask(int pid, int signal) throws RemoteException {
+        return mInterface.signalTask(pid, signal);
+    }
+    
     
     @Override
     public void listenOnSocketFile(@NonNull String name) throws RemoteException {
