@@ -17,6 +17,8 @@ import com.termux.plugin_aidl.IPluginCallback;
  * Override {@link #getCallbacks()} in a subclass and provide your own implementation.
  * {@link Callbacks} also checks that the calling package is Termux in the first transaction.
  * The signature is not verified, as that should have happened when the plugin connected to Termux.
+ * <br>
+ * If you use this, you also have to declare the foreground service permission in the manifest.
  */
 public abstract class CallbackService extends Service
 {
@@ -54,10 +56,29 @@ public abstract class CallbackService extends Service
      * Also checks that the calling package is Termux in the first transaction.
      */
     public abstract class Callbacks extends IPluginCallback.Stub {
+        boolean unverified = true;
+        
         @Override
         public boolean onTransact(int code, Parcel data, Parcel reply, int flags) throws RemoteException {
-            if (! TermuxPluginConstants.TERMUX_PACKAGE_NAME.equals(mService.getPackageManager().getNameForUid(Binder.getCallingUid())))
-                throw new SecurityException("Only "+TermuxPluginConstants.TERMUX_PACKAGE_NAME+" can bind to this service.");
+            if (unverified) {
+                // check the Termux signature
+                if (! PluginUtils.checkTermuxPackageSignature(mService)) {
+                    throw new SecurityException("Wrong signature for " + TermuxPluginConstants.TERMUX_PACKAGE_NAME);
+                }
+                // check for the Termux package name in the list of packages for the Binder transaction uid
+                boolean found = false;
+                for (String pkg : mService.getPackageManager().getPackagesForUid(Binder.getCallingUid())) {
+                    if (TermuxPluginConstants.TERMUX_PACKAGE_NAME.equals(pkg)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) {
+                    unverified = false;
+                } else {
+                    throw new SecurityException("Only " + TermuxPluginConstants.TERMUX_PACKAGE_NAME + " can bind to this service.");
+                }
+            }
             return super.onTransact(code, data, reply, flags);
         }
     
