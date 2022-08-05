@@ -20,6 +20,8 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.IOException;
+
 
 @RunWith(AndroidJUnit4.class)
 public class PluginTestsWithPluginPermission
@@ -35,7 +37,7 @@ public class PluginTestsWithPluginPermission
     }
     
     
-    @Test public void runCommandTest() throws RemoteException {
+    @Test public void runCommandTest() throws RemoteException, IOException {
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
         
         assert appContext.checkSelfPermission(TermuxPluginConstants.PERMISSION_RUN_COMMAND) == PackageManager.PERMISSION_DENIED; // check that the RUN_COMMAND permission hasn't been granted
@@ -56,10 +58,15 @@ public class PluginTestsWithPluginPermission
             public void taskFinished(int pid, int code) {}
         });
         
+        ParcelFileDescriptor[] in = ParcelFileDescriptor.createPipe();
         try {
-            w.runTask("", null, null, null, null);
+            w.runTask("", null, in[0], "/", null);
             assert false; // runTask should always throw a SecurityException without the RUN_COMMAND permission
         } catch (SecurityException ignored) {}
+        finally {
+            in[0].close();
+            in[1].close();
+        }
         
     }
     
