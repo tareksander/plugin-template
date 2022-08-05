@@ -4,9 +4,9 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.os.Handler;
 import android.os.IBinder;
 
 import androidx.annotation.NonNull;
@@ -15,6 +15,7 @@ import androidx.annotation.Nullable;
 import com.termux.plugin_aidl.IPluginService;
 
 import java.security.MessageDigest;
+import java.util.function.Consumer;
 
 public final class PluginUtils
 {
@@ -54,79 +55,82 @@ public final class PluginUtils
     
     
     /**
-     * Bind the Termux plugin service and check the Termux package signature beforehand.
-     * Returns a wrapper providing overloaded methods for {@link IPluginService}
+     * Synchronous verson of {@link #bindPluginService(Context, Consumer)}.
      * 
-     * @param c The context used to bind the service.
+     * @param c The context used to get the application context.
      * @return An {@link IPluginService} object or null if the termux app signature doesn't match
      * or the service refused the connection.
      */
     public static PluginServiceWrapper bindPluginService(Context c) {
+        final Object lock = new Object();
+        final PluginServiceWrapper[] w = new PluginServiceWrapper[1];
+        final boolean[] finished = {false};
+        bindPluginService(c, (PluginServiceWrapper res) -> {
+            synchronized (lock) {
+                w[0] = res;
+                finished[0] = true;
+                lock.notifyAll();
+            }
+        });
+        synchronized (lock) {
+            while (! finished[0]) {
+                try {
+                    lock.wait();
+                }
+                catch (InterruptedException ignored) {}
+            }
+        }
+        return w[0];
+    }
+    
+    /**
+     * Bind the Termux plugin service and check the Termux package signature beforehand.
+     * 
+     * @param c The context used to get the application context.
+     * @param callback This callback is called on the main thread with the finished {@link PluginServiceWrapper}, or null in case of failure or a wrong signature of the com.termux package.
+     */
+    public static void bindPluginService(Context c, Consumer<PluginServiceWrapper> callback) {
         Context app = c.getApplicationContext();
+        Handler h = new Handler(app.getMainLooper());
         // fail if signature not valid
         if (! checkTermuxPackageSignature(app)) {
-            return null;
+            h.post(() -> callback.accept(null));
+            return;
         }
         
-        final Object lock = new Object();
-    
-        final boolean[] finished = {false};
-        final IPluginService[] service = new IPluginService[1];
         final Intent pluginServiceIntent = new Intent();
-        
+    
         pluginServiceIntent.setComponent(ComponentName.createRelative(TermuxPluginConstants.TERMUX_PACKAGE_NAME, TermuxPluginConstants.TERMUX_PLUGIN_SERVICE_NAME));
     
         final ServiceConnection con = new ServiceConnection()
         {
             @Override
             public void onServiceConnected(ComponentName name, IBinder b) {
-                service[0] = IPluginService.Stub.asInterface(b);
-                finished[0] = true;
-                synchronized (lock) {
-                    lock.notifyAll();
-                }
+                h.post(() -> callback.accept(new PluginServiceWrapper(IPluginService.Stub.asInterface(b), this, app)));
             }
-    
+        
             @Override
             public void onServiceDisconnected(ComponentName name) {
                 app.unbindService(this);
             }
-    
+        
             @Override
             public void onNullBinding(ComponentName name) {
                 ServiceConnection.super.onNullBinding(name);
-                finished[0] = true;
-                synchronized (lock) {
-                    lock.notifyAll();
-                }
+                h.post(() -> callback.accept(null));
+                try {
+                    app.unbindService(this);
+                } catch (IllegalArgumentException ignored) {}
             }
         };
         try {
-            if (!app.bindService(pluginServiceIntent, con, Context.BIND_ABOVE_CLIENT | Context.BIND_AUTO_CREATE)) {
-                return null;
+            if (!app.bindService(pluginServiceIntent, con, Context.BIND_AUTO_CREATE)) {
+                h.post(() -> callback.accept(null));
             }
         } catch (SecurityException ignored) {
-            return null;
+            h.post(() -> callback.accept(null));
         }
-        while (!finished[0]) {
-            try {
-                synchronized (lock) {
-                    lock.wait();
-                }
-            }
-            catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                return null;
-            }
-        }
-        if (service[0] == null) {
-            app.unbindService(con);
-            return null;
-        }
-        return new PluginServiceWrapper(service[0]);
     }
-    
-    
     
     /**
      * Checks if the package {@link TermuxPluginConstants#TERMUX_PACKAGE_NAME} matches one of the signatures

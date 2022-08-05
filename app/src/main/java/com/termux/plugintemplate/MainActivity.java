@@ -1,8 +1,8 @@
 package com.termux.plugintemplate;
 
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.os.Bundle;
+
+import androidx.appcompat.app.AppCompatActivity;
 
 import com.termux.plugin_shared.TermuxPluginConstants;
 

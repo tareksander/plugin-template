@@ -1,7 +1,7 @@
 package com.termux.plugintemplate;
 
 import android.os.ParcelFileDescriptor;
-import android.os.RemoteException;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -9,6 +9,11 @@ import com.termux.plugin_shared.CallbackService;
 
 public class TemplateCallbackService extends CallbackService
 {
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        Log.d("TemplateCallbackService", "callback service bound");
+    }
     
     @NonNull
     @Override

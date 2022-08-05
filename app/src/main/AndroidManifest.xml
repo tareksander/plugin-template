@@ -3,6 +3,7 @@
     package="com.termux.plugintemplate">
 
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     
     <application
         android:allowBackup="true"
@@ -21,10 +22,17 @@
             </intent-filter>
         </activity>
 
+        <!-- Use 'android:permission="com.termux.permission.TERMUX_SIGNATURE"' to protect the receiver. -->
+        <receiver android:name=".TemplateStartReceiver"
+            android:exported="true"
+            android:permission="com.termux.permission.TERMUX_SIGNATURE"/>
+        
         <service
             android:name=".TemplatePluginService"
             android:enabled="true"
-            android:exported="false" /> <!-- Use 'android:permission="com.termux.permission.TERMUX_SIGNATURE"' to protect the service. -->
+            android:exported="false" />
+        
+        <!-- Use 'android:permission="com.termux.permission.TERMUX_SIGNATURE"' to protect the service. -->
         <service
             android:name=".TemplateCallbackService"
             android:enabled="true"

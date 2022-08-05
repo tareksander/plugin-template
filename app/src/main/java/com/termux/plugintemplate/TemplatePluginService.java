@@ -24,7 +24,7 @@ public class TemplatePluginService extends Service
     static Notification getServiceNotification(Context c) {
         NotificationManagerCompat nm = NotificationManagerCompat.from(c);
         nm.createNotificationChannel(new NotificationChannelCompat.Builder("service", NotificationManagerCompat.IMPORTANCE_MIN).setName("Service").build());
-        return new NotificationCompat.Builder(c, "service").setPriority(NotificationCompat.PRIORITY_MIN).setContentTitle("TestPlugin").build();
+        return new NotificationCompat.Builder(c, "service").setPriority(NotificationCompat.PRIORITY_MIN).setContentTitle("TestPlugin").setSmallIcon(R.drawable.ic_launcher_foreground).build();
     }
     
     
@@ -33,23 +33,25 @@ public class TemplatePluginService extends Service
         
         
         startForeground(100, getServiceNotification(this));
-        
-        
+    
         Log.d(LOG_TAG, "Plugin service started");
     
-        PluginServiceWrapper w = PluginUtils.bindPluginService(this);
-        if (w == null) {
-            Log.d(LOG_TAG, "Could not bind to Termux PluginService");
-            stopSelf();
-            return Service.START_NOT_STICKY;
-        }
+        PluginUtils.bindPluginService(this, (PluginServiceWrapper w) -> {
+            if (w == null) {
+                Log.d(LOG_TAG, "Could not bind to Termux PluginService");
+                stopSelf();
+                return;
+            }
+            Log.d(LOG_TAG, "Bound to Termux PluginService");
     
-        try {
-            w.setCallbackService(new ComponentName(this, TemplateCallbackService.class).getShortClassName());
-        }
-        catch (RemoteException e) {
-            e.printStackTrace();
-        }
+            try {
+                w.setCallbackService(new ComponentName(TemplatePluginService.this, TemplateCallbackService.class).getShortClassName(), PluginServiceWrapper.PRIORITY_NORMAL);
+            }
+            catch (RemoteException e) {
+                e.printStackTrace();
+            }
+        });
+        
     
         return Service.START_STICKY;
     }
