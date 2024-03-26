@@ -5,6 +5,8 @@ import android.app.Service;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
+import android.os.Build;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.Log;
@@ -32,8 +34,12 @@ public class TemplatePluginService extends Service
     public int onStartCommand(Intent intent, int flags, int startId) {
         
         
-        startForeground(100, getServiceNotification(this));
-    
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(100, getServiceNotification(this), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+        } else {
+            startForeground(100, getServiceNotification(this));
+        }
+        
         Log.d(LOG_TAG, "Plugin service started");
     
         PluginUtils.bindPluginService(this, (PluginServiceWrapper w) -> {

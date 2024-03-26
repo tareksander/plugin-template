@@ -8,6 +8,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.IBinder;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -94,6 +95,7 @@ public final class PluginUtils
         Handler h = new Handler(app.getMainLooper());
         // fail if signature not valid
         if (! checkTermuxPackageSignature(app)) {
+            Log.d("bind", "invalid signature");
             h.post(() -> callback.accept(null));
             return;
         }
@@ -116,6 +118,7 @@ public final class PluginUtils
         
             @Override
             public void onNullBinding(ComponentName name) {
+                Log.d("bind", "null binding");
                 ServiceConnection.super.onNullBinding(name);
                 h.post(() -> callback.accept(null));
                 try {
@@ -128,6 +131,7 @@ public final class PluginUtils
                 h.post(() -> callback.accept(null));
             }
         } catch (SecurityException ignored) {
+            Log.d("bind", "SecurityException", ignored);
             h.post(() -> callback.accept(null));
         }
     }

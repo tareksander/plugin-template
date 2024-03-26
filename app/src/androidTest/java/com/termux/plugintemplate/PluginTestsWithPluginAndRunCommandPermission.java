@@ -53,49 +53,53 @@ public class PluginTestsWithPluginAndRunCommandPermission
         final int[] exitpid = new int[1];
         final int[] exitcode = new int[1];
         
-        PluginServiceWrapper w = PluginUtils.bindPluginService(appContext);
-        assert w != null; // binding the service should be possible with the Plugin permission
-        w.setCallbackBinder(new IPluginCallback.Stub()
-        {
-            @Override
-            public int getCallbackVersion() {
-                Log.d("IPluginCallback","getCallbackVersion");
-                return IPluginCallback.CURRENT_CALLBACK_VERSION;
-            }
-    
-            @Override
-            public void socketConnection(String sockname, ParcelFileDescriptor connection) {}
-            @Override
-            public void taskFinished(int pid, int code) {
-                exitpid[0] = pid;
-                exitcode[0] = code;
-            }
-        });
-        
-        ParcelFileDescriptor[] pipes = ParcelFileDescriptor.createPipe();
-        Task t = w.runTask(TermuxPluginConstants.TERMUX_FILES_DIR_PATH+"/usr/bin/cat", new String[]{TermuxPluginConstants.TERMUX_FILES_DIR_PATH+"/usr/bin/cat"}, pipes[0], "/", null);
-        new Thread(() -> {
-            try {
-                Thread.sleep(2000);
-            }
-            catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            BufferedWriter wr = new BufferedWriter(new FileWriter(pipes[1].getFileDescriptor()));
-            try {
-                wr.write("test\n");
-                wr.close();
-            }
-            catch (IOException e) {
-                e.printStackTrace();
-            }
-        }).start();
-        
-        BufferedReader r = new BufferedReader(new FileReader(t.stdout.getFileDescriptor()));
-        assert "test".equals(r.readLine());
-        
-        // kill the Task
-        assert w.signalTask(t.pid, 9);
+        Task t;
+        try (PluginServiceWrapper w = PluginUtils.bindPluginService(appContext)) {
+            assert w != null; // binding the service should be possible with the Plugin permission
+            w.setCallbackBinder(new IPluginCallback.Stub()
+            {
+                @Override
+                public int getCallbackVersion() {
+                    Log.d("IPluginCallback", "getCallbackVersion");
+                    return IPluginCallback.CURRENT_CALLBACK_VERSION;
+                }
+                
+                @Override
+                public void socketConnection(String sockname, ParcelFileDescriptor connection) {
+                }
+                
+                @Override
+                public void taskFinished(int pid, int code) {
+                    exitpid[0] = pid;
+                    exitcode[0] = code;
+                }
+            });
+            
+            ParcelFileDescriptor[] pipes = ParcelFileDescriptor.createPipe();
+            t = w.runTask(TermuxPluginConstants.TERMUX_FILES_DIR_PATH + "/usr/bin/cat", new String[]{TermuxPluginConstants.TERMUX_FILES_DIR_PATH + "/usr/bin/cat"}, pipes[0], "/", null);
+            new Thread(() -> {
+                try {
+                    Thread.sleep(2000);
+                }
+                catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                BufferedWriter wr = new BufferedWriter(new FileWriter(pipes[1].getFileDescriptor()));
+                try {
+                    wr.write("test\n");
+                    wr.close();
+                }
+                catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }).start();
+            
+            BufferedReader r = new BufferedReader(new FileReader(t.stdout.getFileDescriptor()));
+            assert "test".equals(r.readLine());
+            
+            // kill the Task
+            assert w.signalTask(t.pid, 9);
+        }
         
         while (exitpid[0] == 0) {
             Thread.sleep(1);
@@ -108,51 +112,62 @@ public class PluginTestsWithPluginAndRunCommandPermission
     @Test
     public void openFileOutsidePluginDirTest() throws RemoteException{
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
-    
-        PluginServiceWrapper w = PluginUtils.bindPluginService(appContext);
-        assert w != null; // binding the service should be possible with the Plugin permission
-        w.setCallbackBinder(new IPluginCallback.Stub()
-        {
-            @Override
-            public int getCallbackVersion() {
-                Log.d("IPluginCallback", "getCallbackVersion");
-                return IPluginCallback.CURRENT_CALLBACK_VERSION;
+        
+        try (PluginServiceWrapper w = PluginUtils.bindPluginService(appContext)) {
+            assert w != null; // binding the service should be possible with the Plugin permission
+            w.setCallbackBinder(new IPluginCallback.Stub()
+            {
+                @Override
+                public int getCallbackVersion() {
+                    Log.d("IPluginCallback", "getCallbackVersion");
+                    return IPluginCallback.CURRENT_CALLBACK_VERSION;
+                }
+                
+                @Override
+                public void socketConnection(String sockname, ParcelFileDescriptor connection) {
+                }
+                
+                @Override
+                public void taskFinished(int pid, int code) {
+                }
+            });
+            try {
+                w.openFile("../test.txt", "w");
+                assert false; // the method should throw an Exception, because the relative path leads outside of the plugin dir
             }
-    
-            @Override
-            public void socketConnection(String sockname, ParcelFileDescriptor connection) {}
-    
-            @Override
-            public void taskFinished(int pid, int code) {}
-        });
-        try {
-            w.openFile("../test.txt", "w");
-            assert false; // the method should throw an Exception, because the relative path leads outside of the plugin dir
-        } catch (IllegalArgumentException ignored) {}
+            catch (IllegalArgumentException ignored) {
+            }
+        }
     }
     
     @Test
     public void openFileTest() throws RemoteException, IOException, InterruptedException {
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
-    
-        PluginServiceWrapper w = PluginUtils.bindPluginService(appContext);
-        assert w != null; // binding the service should be possible with the Plugin permission
-        w.setCallbackBinder(new IPluginCallback.Stub()
-        {
-            @Override
-            public int getCallbackVersion() {
-                Log.d("IPluginCallback","getCallbackVersion");
-                return IPluginCallback.CURRENT_CALLBACK_VERSION;
-            }
-    
-            @Override
-            public void socketConnection(String sockname, ParcelFileDescriptor connection) {}
-            @Override
-            public void taskFinished(int pid, int code) {}
-        });
-        final String writeString = "Hello Plugin!\n";
         
-        ParcelFileDescriptor p = w.openFile("test.txt", "w");
+        final String writeString;
+        ParcelFileDescriptor p;
+        try (PluginServiceWrapper w = PluginUtils.bindPluginService(appContext)) {
+            assert w != null; // binding the service should be possible with the Plugin permission
+            w.setCallbackBinder(new IPluginCallback.Stub()
+            {
+                @Override
+                public int getCallbackVersion() {
+                    Log.d("IPluginCallback", "getCallbackVersion");
+                    return IPluginCallback.CURRENT_CALLBACK_VERSION;
+                }
+                
+                @Override
+                public void socketConnection(String sockname, ParcelFileDescriptor connection) {
+                }
+                
+                @Override
+                public void taskFinished(int pid, int code) {
+                }
+            });
+            writeString = "Hello Plugin!\n";
+            
+            p = w.openFile("test.txt", "w");
+        }
         assert p != null; // the method should return a ParcelFileDescriptor open for writing
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(p.getFileDescriptor()))) {
             writer.write(writeString);
@@ -166,7 +181,7 @@ public class PluginTestsWithPluginAndRunCommandPermission
             catIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_ARGUMENTS, new String[] {TermuxPluginConstants.TERMUX_PLUGINS_DIR_PATH+"/"+appContext.getPackageName()+"/test.txt"});
             //noinspection deprecation
             catIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_BACKGROUND, true);
-            catIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_PENDING_INTENT, PendingIntent.getBroadcast(appContext, 0, new Intent(appContext.getPackageName()+".fileintent"), PendingIntent.FLAG_CANCEL_CURRENT));
+            catIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_PENDING_INTENT, PendingIntent.getBroadcast(appContext, 0, new Intent(appContext.getPackageName()+".fileintent"), PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_MUTABLE));
             
             Object sync = new Object();
             final boolean[] finished = {false};
@@ -200,26 +215,32 @@ public class PluginTestsWithPluginAndRunCommandPermission
     public void openSocketOutsidePluginDirTest() throws RemoteException {
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
         
-        PluginServiceWrapper w = PluginUtils.bindPluginService(appContext);
-        assert w != null; // binding the service should be possible with the Plugin permission
-        w.setCallbackBinder(new IPluginCallback.Stub()
-        {
-            @Override
-            public int getCallbackVersion() {
-                Log.d("IPluginCallback","getCallbackVersion");
-                return IPluginCallback.CURRENT_CALLBACK_VERSION;
-            }
+        try (PluginServiceWrapper w = PluginUtils.bindPluginService(appContext)) {
+            assert w != null; // binding the service should be possible with the Plugin permission
+            w.setCallbackBinder(new IPluginCallback.Stub()
+            {
+                @Override
+                public int getCallbackVersion() {
+                    Log.d("IPluginCallback", "getCallbackVersion");
+                    return IPluginCallback.CURRENT_CALLBACK_VERSION;
+                }
+                
+                @Override
+                public void socketConnection(String sockname, ParcelFileDescriptor connection) {
+                }
+                
+                @Override
+                public void taskFinished(int pid, int code) {
+                }
+            });
             
-            @Override
-            public void socketConnection(String sockname, ParcelFileDescriptor connection) {}
-            @Override
-            public void taskFinished(int pid, int code) {}
-        });
-        
-        try {
-            w.listenOnSocketFile("../test.sock");
-            assert false; // the method should throw an Exception, because the relative path leads outside of the plugin dir
-        } catch (IllegalArgumentException ignored) {}
+            try {
+                w.listenOnSocketFile("../test.sock");
+                assert false; // the method should throw an Exception, because the relative path leads outside of the plugin dir
+            }
+            catch (IllegalArgumentException ignored) {
+            }
+        }
         
     }
     
@@ -232,41 +253,45 @@ public class PluginTestsWithPluginAndRunCommandPermission
         final String[] res = {null};
         final String testString = "socket test";
         
-        PluginServiceWrapper w = PluginUtils.bindPluginService(appContext);
-        assert w != null; // binding the service should be possible with the Plugin permission
-        w.setCallbackBinder(new IPluginCallback.Stub()
-        {
-            @Override
-            public int getCallbackVersion() {
-                Log.d("IPluginCallback","getCallbackVersion");
-                return IPluginCallback.CURRENT_CALLBACK_VERSION;
-            }
-    
-            @Override
-            public void socketConnection(String sockname, ParcelFileDescriptor connection) {
-                BufferedReader r = new BufferedReader(new FileReader(connection.getFileDescriptor()));
-                try {
-                    res[0] = r.readLine();
-                    r.close();
-                    connection.close();
+        try (PluginServiceWrapper w = PluginUtils.bindPluginService(appContext)) {
+            assert w != null; // binding the service should be possible with the Plugin permission
+            w.setCallbackBinder(new IPluginCallback.Stub()
+            {
+                @Override
+                public int getCallbackVersion() {
+                    Log.d("IPluginCallback", "getCallbackVersion");
+                    return IPluginCallback.CURRENT_CALLBACK_VERSION;
                 }
-                catch (IOException ignored) {}
-                synchronized (sync) {
-                    finished[0] = true;
-                    sync.notifyAll();
+                
+                @Override
+                public void socketConnection(String sockname, ParcelFileDescriptor connection) {
+                    BufferedReader r = new BufferedReader(new FileReader(connection.getFileDescriptor()));
+                    try {
+                        res[0] = r.readLine();
+                        r.close();
+                        connection.close();
+                    }
+                    catch (IOException ignored) {
+                    }
+                    synchronized (sync) {
+                        finished[0] = true;
+                        sync.notifyAll();
+                    }
                 }
-            }
-            @Override
-            public void taskFinished(int pid, int code) {}
-        });
-        
-        w.listenOnSocketFile("test.sock");
+                
+                @Override
+                public void taskFinished(int pid, int code) {
+                }
+            });
+            
+            w.listenOnSocketFile("test.sock");
+        }
         
         {
             Intent ncIntent = new Intent(TermuxPluginConstants.RUN_COMMAND_SERVICE.ACTION_RUN_COMMAND);
             ncIntent.setComponent(ComponentName.createRelative(TermuxPluginConstants.TERMUX_PACKAGE_NAME, TermuxPluginConstants.RUN_COMMAND_SERVICE_NAME));
             ncIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_COMMAND_PATH, TermuxPluginConstants.TERMUX_FILES_DIR_PATH+"/usr/bin/bash");
-            ncIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_ARGUMENTS, new String[] {"-c", "echo \""+testString+"\" | timeout 0.1 nc -U "+TermuxPluginConstants.TERMUX_PLUGINS_DIR_PATH+"/"+appContext.getPackageName()+"/test.sock"});
+            ncIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_ARGUMENTS, new String[] {"-c", "echo \""+testString+"\" | timeout 1 nc -U "+TermuxPluginConstants.TERMUX_PLUGINS_DIR_PATH+"/"+appContext.getPackageName()+"/test.sock"});
             //noinspection deprecation
             ncIntent.putExtra(TermuxPluginConstants.RUN_COMMAND_SERVICE.EXTRA_BACKGROUND, true);
             
@@ -292,45 +317,49 @@ public class PluginTestsWithPluginAndRunCommandPermission
         
         final String testString = "socket test";
         
-        PluginServiceWrapper w = PluginUtils.bindPluginService(appContext);
-        assert w != null; // binding the service should be possible with the Plugin permission
-        w.setCallbackBinder(new IPluginCallback.Stub()
-        {
-            @Override
-            public int getCallbackVersion() {
-                Log.d("IPluginCallback","getCallbackVersion");
-                return IPluginCallback.CURRENT_CALLBACK_VERSION;
-            }
+        try (PluginServiceWrapper w = PluginUtils.bindPluginService(appContext)) {
+            assert w != null; // binding the service should be possible with the Plugin permission
+            w.setCallbackBinder(new IPluginCallback.Stub()
+            {
+                @Override
+                public int getCallbackVersion() {
+                    Log.d("IPluginCallback", "getCallbackVersion");
+                    return IPluginCallback.CURRENT_CALLBACK_VERSION;
+                }
+                
+                @Override
+                public void socketConnection(String sockname, ParcelFileDescriptor connection) {
+                    try {
+                        ParcelFileDescriptor[] pair = ParcelFileDescriptor.createSocketPair();
+                        UnixSocketUtils.sendFD(connection, pair[1]);
+                        pair[1].close();
+                        BufferedWriter w = new BufferedWriter(new FileWriter(pair[0].getFileDescriptor()));
+                        w.write(testString);
+                        w.flush();
+                        w.close();
+                        pair[0].close();
+                        ParcelFileDescriptor rec = UnixSocketUtils.recvFD(connection);
+                        BufferedReader r = new BufferedReader(new FileReader(Objects.requireNonNull(rec).getFileDescriptor()));
+                        res[0] = r.readLine();
+                        r.close();
+                        rec.close();
+                        connection.close();
+                    }
+                    catch (Exception ignored) {
+                    }
+                    synchronized (sync) {
+                        finished[0] = true;
+                        sync.notifyAll();
+                    }
+                }
+                
+                @Override
+                public void taskFinished(int pid, int code) {
+                }
+            });
             
-            @Override
-            public void socketConnection(String sockname, ParcelFileDescriptor connection) {
-                try {
-                    ParcelFileDescriptor[] pair = ParcelFileDescriptor.createSocketPair();
-                    UnixSocketUtils.sendFD(connection, pair[1]);
-                    pair[1].close();
-                    BufferedWriter w = new BufferedWriter(new FileWriter(pair[0].getFileDescriptor()));
-                    w.write(testString);
-                    w.flush();
-                    w.close();
-                    pair[0].close();
-                    ParcelFileDescriptor rec = UnixSocketUtils.recvFD(connection);
-                    BufferedReader r = new BufferedReader(new FileReader(Objects.requireNonNull(rec).getFileDescriptor()));
-                    res[0] = r.readLine();
-                    r.close();
-                    rec.close();
-                    connection.close();
-                }
-                catch (Exception ignored) {}
-                synchronized (sync) {
-                    finished[0] = true;
-                    sync.notifyAll();
-                }
-            }
-            @Override
-            public void taskFinished(int pid, int code) {}
-        });
-        
-        w.listenOnSocketFile("test.sock");
+            w.listenOnSocketFile("test.sock");
+        }
         
         
         {
